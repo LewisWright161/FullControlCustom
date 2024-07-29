@@ -1,4 +1,7 @@
-
+!pip install git+https://github.com/FullControlXYZ/fullcontrol --quiet
+import fullcontrol as fc
+from math import tau, sin, pi, cos, exp
+import plotly.graph_objects as go
 
 
 
