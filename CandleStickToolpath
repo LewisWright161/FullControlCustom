@@ -1,0 +1,167 @@
+
+
+
+
+def plot_generator_candlestick(decimal_value,n_population,parameter_names,parameter_range):
+figw = [None] * n_population
+fig = [None] * n_population
+
+parameters = {}
+
+for individual in range(n_population):
+  for parameter in range(n_parameters):
+    parameters[parameter_names[parameter]] = decimal_value[individual][parameter]
+  parameters['Taper'] = parameters['Taper'] / 100
+  parameters['Limb Radius'] = parameters['Limb Radius'] / 100
+  parameters['Polygon Twist Angle'] = parameters['Polygon Twist Angle'] * pi / 10
+  parameters['Limb Twist Angle'] = parameters['Limb Twist Angle'] * pi / 1440
+
+  steps[individual] = generate_candlestick(parameters['Height 1'],parameters['Branch 1 Length'],parameters['Height 2'],parameters['Branch 2 Length'],parameters['Branch 1 Number'],parameters['Branch 2 Number'],parameters['Taper'],parameters['Number of Sides'],parameters['Branch 1 Height'],parameters['Branch 2 Height'],parameters['Limb Radius'],parameters['Polygon Twist Angle'],parameters['Limb Twist Angle'])
+
+  fig[individual] = transform(steps[individual], 'plot', fc.PlotControls(style='line', zoom=0.4))
+  figw[individual] = go.FigureWidget(fig[individual])
+  if individual % 2 == 1:
+    vbox1 = widgets.VBox([figw[individual-1],rating_Slider[individual-1]])
+    vbox2 = widgets.VBox([figw[individual],rating_Slider[individual]])
+    display(widgets.HBox([vbox1,vbox2]))
+return steps
+
+def generate_candlestick(height1,branch1_length,height2,branch2_length,branch1_number,branch2_number,taper,sides,branch1_height,branch2_height,limb_radius,polygon_twist_angle,limb_twist_angle):
+
+branches = []
+
+branches = create_base_structure(height1,branch1_length,branch1_number,sides,branch1_height,branches,0,0,limb_twist_angle,EH)
+branches_copy = branches.copy()
+for i in range(len(branches_copy)):
+  branches += create_base_structure(height2,branch2_length,branch2_number,sides,branch2_height,branches,1,i,limb_twist_angle,EH)
+
+points = create_points_from_branches(branches,EH,limb_twist_angle)
+points = create_geometry_from_points(points,sides,limb_radius,taper,polygon_twist_angle,height1,height2,branch1_height,branch2_height)
+
+return points
+
+class Branch:
+def __init__(self,start,end,num_sides):
+  self.start = start
+  self.end = end
+  self.num_sides = num_sides
+
+def create_base_structure(height,branch_length,branch_number,sides,branch_height,branches,split_count,branch_count,limb_twist_angle,EH):
+
+if split_count == 1:
+  x_start = branches[branch_count].end[0]
+  y_start = branches[branch_count].end[1]
+  z_start = branches[branch_count].end[2] - EH
+
+  x_end = x_start
+  y_end = y_start
+  z_end = z_start + height
+
+  angle = 2 * limb_twist_angle
+
+  x_start = x_start * cos(limb_twist_angle) - y_start * sin(limb_twist_angle)
+  y_start = x_start * sin(limb_twist_angle) + y_start * cos(limb_twist_angle)
+
+  x_end = x_end * cos(angle) - y_end * sin(angle)
+  y_end = x_end * sin(angle) + y_end * cos(angle)
+
+  stem_start = [x_start,y_start,z_start]
+  stem_end = [x_end,y_end,z_end]
+
+  stem = Branch(stem_start,stem_end,sides)
+
+  radius = branch_length / 2
+  angle_step = 2 * pi / branch_number
+
+  initial_branches = []
+  for i in range(branch_number):
+    angle = i * angle_step
+
+    branch_x_end = stem_end[0] + radius * cos(angle)
+    branch_y_end = stem_end[1] + radius * sin(angle)
+    branch_z_end = stem_end[2]
+
+    branch_z_start = (1-branch_height) * height + z_start
+
+    fraction = 1-branch_height
+    twist_angle_now = limb_twist_angle * fraction
+
+    stem_x_now = (stem.start[0] + (stem.end[0] - stem.start[0]) * sin((pi / 2) * fraction))
+    stem_y_now = (stem.start[1] + (stem.end[1] - stem.start[1]) * sin((pi / 2) * fraction))
+
+    branch_x_start = stem_x_now * cos(twist_angle_now) - stem_y_now * sin(twist_angle_now)
+    branch_y_start = stem_x_now * sin(twist_angle_now) + stem_y_now * cos(twist_angle_now)
+
+    branch_start = [branch_x_start,branch_y_start,branch_z_start]
+    branch_end = [branch_x_end,branch_y_start,branch_z_end]
+
+    initial_branches.append(Branch(branch_start,branch_end,sides))
+else:
+  stem_start = [0,0,0]
+  stem_end = [0,0,height]
+  stem = Branch(stem_start,stem_end,sides)
+
+  radius = branch_length / 2
+  angle_step = 2 * pi / branch_number
+
+  initial_branches = []
+  for i in range(branch_number):
+    angle = i * angle_step
+    branch_x_end = stem_end[0] + radius * cos(angle)
+    branch_y_end = stem_end[1] + radius * sin(angle)
+    branch_z_end = stem_end[2]
+
+    branch_x_end = branch_x_end * cos(limb_twist_angle) - branch_y_end * sin(limb_twist_angle)
+    branch_y_end = branch_x_end * sin(limb_twist_angle) + branch_y_end * cos(limb_twist_angle)
+
+    branch_start = [stem.start[0],stem.start[1],stem.start[2] + height * (1-branch_height)]
+    branch_end = [branch_x_end,branch_y_end,branch_z_end]
+    initial_branches.append(Branch(branch_start,branch_end,sides))
+
+return [stem] + initial_branches
+
+def create_points_from_branches(branches,EH,limb_twist_angle):
+points = []
+for i, branch in enumerate(branches):
+  layers = int((branch.end[2] - branch.start[2]) / EH) + 1
+  for layer in range(layers):
+    fraction_now = layer / layers
+    limb_twist_angle_now = limb_twist_angle * fraction_now
+    x_now = branch.start[0] + (branch.end[0] - branch.start[0]) * sin((pi / 2) * fraction_now)
+    y_now = branch.start[1] + (branch.end[1] - branch.start[1]) * sin((pi / 2) * fraction_now)
+    z_now = branch.start[2] + (branch.end[2] - branch.start[2]) * fraction_now
+
+    x_now = x_now * cos(limb_twist_angle_now) - y_now * sin(limb_twist_angle_now)
+    y_now = x_now * sin(limb_twist_angle_now) + y_now * cos(limb_twist_angle_now)
+
+    points.append(fc.Point(x=x_now,y=y_now,z=z_now))
+
+return points
+
+def create_geometry_from_points(points,sides,limb_radius,taper,polygon_twist_angle,height1,height2,branch1_height,branch2_height):
+
+steps = []
+
+old_z = 0
+centre_x = 0
+centre_y = 0
+centre_z = 0
+
+for k, point in enumerate(points):
+  old_z = centre_z
+  centre_x = point.x
+  centre_y = point.y
+  centre_z = point.z
+  fraction_now = centre_z / (height1 + height2)
+  if old_z >= centre_z:
+    steps.append(fc.Extruder(on=False))
+  elif centre_z <= branch1_height * height1 + 0.2 or centre_z <= branch2_height * height2 + 0.2 + height1:
+    steps.append(fc.Extruder(on=True))
+  for i in range(sides):
+    angle_now = 2 * pi * i / sides + polygon_twist_angle * (centre_z/height1+height2)
+    x_now = centre_x + limb_radius * cos(angle_now) * (1-taper * fraction_now)
+    y_now = centre_y + limb_radius * sin(angle_now) * (1 - taper*fraction_now)
+    z_now = centre_z
+    steps.append(fc.Point(x=x_now,y=y_now,z=z_now))
+
+return steps
