@@ -1,0 +1,33 @@
+import numpy as np
+from math import tau, sin, pi, cos, exp
+
+
+def plot_generator_vase(decimal_value,n_population,parameter_names,parameter_range):
+  fig = [None] * n_population
+  figw = [None] * n_population
+  parameters = {}
+  for individual in range(n_population):
+    for parameter in range(n_parameters):
+      parameters[parameter_names[parameter]] = decimal_value[individual][parameter]
+    parameters['Primary Bulge'] = parameters['Primary Bulge'] / 100
+    parameters['Secondary Bulge'] = parameters['Secondary Bulge'] / 100
+    parameters['Twist'] = parameters['Twist'] / 100
+    parameters['Z Wave'] = parameters['Z Wave'] / 10
+    layers = 1000
+    segments_per_layer = parameters['Shape Vertices']
+    segment_total = parameters['Shape Vertices'] * layers
+    points_total = segment_total + 1
+    steps[individual] = [None] * (segment_total+1)
+    for point in range(points_total):
+      fraction_now = point / (points_total - 1)
+      z_now = fraction_now*parameters['Height']
+      angle = tau*point/200 + (tau*fraction_now*parameters['Twist']/parameters['Shape Vertices'])
+      offset_zwave = (parameters['Z Wave']*(point/points_total)**2)*cos(angle*parameters['Shape Vertices'])
+      diameter_now = parameters['Base Diameter'] + fraction_now*(parameters['Top Diameter'] - parameters['Base Diameter'])
+      offset_primary_bulge = (parameters['Primary Bulge']*diameter_now)*(sin(tau/12 + fraction_now*tau/3)-sin(tau/12))*(1+sin(tau/12))
+      offset_secondary_bulge = (parameters['Secondary Bulge']*diameter_now)*(sin(4*(tau/12 + fraction_now*tau/3))-sin(tau/12))*(1+sin(tau/12))
+      diameter_now += offset_primary_bulge + offset_secondary_bulge + offset_zwave
+      if diameter_now < 5:
+        diameter_now = 5
+      steps[individual][point] = fc.Point(x=diameter_now/2*sin(angle),y=diameter_now/2*cos(angle),z=z_now+offset_zwave/2)
+    fig[individual] = transform(steps[individual], 'plot', fc.PlotControls(style='line', zoom=0.4))
