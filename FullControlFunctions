@@ -1,5 +1,15 @@
-  !pip install git+https://github.com/FullControlXYZ/fullcontrol --quiet
-  import fullcontrol as fc
+!pip install git+https://github.com/FullControlXYZ/fullcontrol --quiet
+import fullcontrol as fc
+from fullcontrol.visualize.plot_data import PlotData
+from fullcontrol.visualize.controls import PlotControls
+from fullcontrol.visualize.tube_mesh import CylindersMesh, FlowTubeMesh, MeshExporter
+from fullcontrol.visualize.plotly import generate_mesh
+from fullcontrol.visualize.state import State
+from typing import Union
+from fullcontrol.combinations.gcode_and_visualize.classes import *
+from fullcontrol.common import check, flatten, linspace, export_design, import_design, points_only, relative_point, first_point
+from fullcontrol.geometry import *
+from fullcontrol.visualize.bounding_box import BoundingBox
 
 def transform(steps: list, result_type: str, controls: Union[GcodeControls, PlotControls] = None):
   if result_type == 'gcode':
