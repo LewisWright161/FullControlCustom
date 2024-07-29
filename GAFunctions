@@ -1,0 +1,195 @@
+import numpy as np
+
+# this function selectes the parent indices and which individuals survive to the next generation
+def tournament_selection(population,fitness,n_population):
+  #first we will choose which individuals survive
+  parent_indices = [0]*int(n_population * 1/2)
+  survivors = [0]*int(n_population * 1/2)
+  fitness_copy = fitness.copy()
+  for i in range(len(survivors)):
+    index_to_retrieve = fitness_copy.index(max(fitness_copy))
+    fitness_copy[index_to_retrieve] = -1
+    survivors[i] = population[index_to_retrieve]
+  #then perform normal tournament selection
+  for i in range(len(parent_indices)):
+    defender_index = np.random.randint(0,n_population)
+    for k in range(n_population):
+      challenger_index = np.random.randint(0,n_population)
+      if fitness[defender_index] < fitness[challenger_index]:
+        defender_index = challenger_index
+    parent_indices[i] = defender_index
+  return parent_indices,survivors
+
+def normal_breed(population,parent_indices_copy,children,n_parameter_length,previous_generations):
+  parent_index1 = parent_indices_copy.pop(np.random.randint(0,len(parent_indices_copy))) # randomly select a parent
+  parent_index2 = parent_indices_copy.pop(np.random.randint(0,len(parent_indices_copy))) # randomly select a parent
+  parent1 = population[parent_index1] # get first parent
+  parent2 = population[parent_index2] # get second parent
+  child1 = [[0]*n_parameter_length[j] for j in range(n_parameters)] # create empty child
+  child2 = [[0]*n_parameter_length[j] for j in range(n_parameters)] # create empty child
+  for i in range(n_parameters):
+    crossover_point = np.random.randint(0,n_parameter_length[i]) # randomly select a crossover point
+    for j in range(n_parameter_length[i]):
+      if j < crossover_point:
+        child1[i][j] = parent1[i][j]
+        child2[i][j] = parent2[i][j]
+      else:
+        child1[i][j] = parent2[i][j]
+        child2[i][j] = parent1[i][j]
+  if child1:
+    children.append(child1)
+  if child2:
+    children.append(child2)
+  return children
+
+def elite_breed(population,parent_indices_copy,children,n_parameter_length,previous_generations,elite_threshold,elite_degree):
+  elite_degree_threshold = 0.5 # set the threshold for elite breeding
+  parent_index1 = parent_indices_copy.pop(np.random.randint(0,len(parent_indices_copy)))
+  parent_index2 = parent_indices_copy.pop(np.random.randint(0,len(parent_indices_copy)))
+  parent1 = population[parent_index1]
+  parent2 = population[parent_index2]
+  child1 = [[0]*n_parameter_length[j] for j in range(n_parameters)]
+  child2 = [[0]*n_parameter_length[j] for j in range(n_parameters)]
+  if elite_degree[parent_index1] > elite_degree_threshold or elite_degree[parent_index2] > elite_degree_threshold:
+    for i in range(n_parameters):
+      crossover_point1 = np.random.randint(0,n_parameter_length[i] - 2)
+      crossover_point2 = np.random.randint(crossover_point1,n_parameter_length[i])
+      for j in range(n_parameter_length[i]):
+        if j < crossover_point1 or j > crossover_point2:
+          child1[i][j] = parent1[i][j]
+          child2[i][j] = parent2[i][j]
+        else:
+          child1[i][j] = parent2[i][j]
+          child2[i][j] = parent1[i][j]
+    if child1:
+      children.append(child1)
+    if child2:
+      children.append(child2)
+  else:
+    for i in range(n_parameters):
+      crossover_point = np.random.randint(0,n_parameter_length[i]) # randomly select a crossover point
+      for j in range(n_parameter_length[i]):
+        if j < crossover_point:
+          child1[i][j] = parent1[i][j]
+          child2[i][j] = parent2[i][j]
+        else:
+          child1[i][j] = parent2[i][j]
+          child2[i][j] = parent1[i][j]
+    if child1:
+      children.append(child1)
+    if child2:
+      children.append(child2)
+  elite_degree[parent_index1] = 0
+  elite_degree[parent_index2] = 0
+  return children,elite_degree
+
+# this function breeds the parents to produce offspring
+def breeding(population,parent_indices,children,n_parameter_length,previous_generations,elite_threshold,fitness):
+    children = []
+    parent_indices_copy = parent_indices.copy() # create a copy of original list to prevent changes being made to it
+    # check whether the user wants elite breeding or not
+    elite_degree = track_ancestors(previous_generations,fitness)
+    elite_degree_copy = elite_degree.copy()
+    while len(parent_indices_copy) > 1:
+      if eliteChecker.value == True and max(elite_degree_copy) > 0.5:
+        children,elite_degree_copy = elite_breed(population,parent_indices_copy,children,n_parameter_length,previous_generations,elite_threshold,elite_degree_copy)
+      else:
+        children = normal_breed(population,parent_indices_copy,children,n_parameter_length,previous_generations)
+    return children,previous_generations
+
+# this function determines the 'elite degree' of the population
+def track_ancestors(previous_generations,fitness):
+  """
+  Tracks all ancestors and elite ancestors for each individual.
+
+  Args:
+    previous_generations: A list of lists, where each inner list represents a generation.
+    elite_threshold: A float representing the elite threshold.
+
+  Returns:
+    A tuple of two lists:
+      - elite_ancestors: A list of lists containing tuples (generation, is_elite, ancestor_count).
+      - all_ancestors: A list of lists containing tuples (generation, ancestor_count).
+  """
+  num_generations = len(previous_generations)
+  num_individuals = len(previous_generations[0])
+  elite_counts = np.zeros((num_generations, num_individuals), dtype=int)
+
+  elite_threshold = 7
+  elite_influence = 0.5
+
+  elite_ancestors = [[[] for _ in range(num_individuals)] for _ in range(num_generations)]
+  all_ancestors = [[[] for _ in range(num_individuals)] for _ in range(num_generations)]
+  elite_degree = [0] * num_individuals
+
+  for gen_idx, generation in enumerate(previous_generations):
+    for ind_idx, individual in enumerate(generation):
+      is_elite = int(individual >= elite_threshold)
+      elite_counts[gen_idx, ind_idx] = is_elite
+
+      elite_ancestors[gen_idx][ind_idx].append((gen_idx, is_elite))
+      all_ancestors[gen_idx][ind_idx].append((gen_idx, 0))
+
+      elite_ancestor_count = 0
+      ancestor_count = 0
+
+      for prev_gen_idx in range(gen_idx - 1, -1, -1):
+        is_elite_ancestor = elite_counts[prev_gen_idx, ind_idx]
+        elite_ancestor_count += is_elite_ancestor
+        ancestor_count += 1
+
+        elite_ancestors[gen_idx][ind_idx].append((prev_gen_idx, is_elite_ancestor))
+        all_ancestors[gen_idx][ind_idx].append((prev_gen_idx, ancestor_count))
+  if len(elite_ancestors) > 1:
+    for i in range(len(elite_ancestors) - 1):
+      del elite_ancestors[0]
+      del all_ancestors[0]
+
+  numerator = 0
+  denominator = 0
+  if num_generations > 1:
+    for i in range(num_individuals):
+      for j in range(num_generations):
+        numerator = numerator + elite_ancestors[0][i][j][1] * (elite_influence ** (elite_ancestors[0][i][j][0] - num_generations))
+        denominator = denominator + all_ancestors[0][i][j][1] * (elite_influence ** (all_ancestors[0][i][j][0] - num_generations))
+        # Check for division by zero
+      if denominator != 0:
+          elite_degree[i] = numerator / denominator
+      else:
+          elite_degree[i] = 0  # Or handle the case as needed
+
+  return elite_degree
+
+# this function mutates the children
+def mutation(children,n_parameters,n_parameter_length,mutation_chance):
+  for i in range(len(children)):
+    for j in range(n_parameters):
+      for k in range(len(children[i][j])):
+        if np.random.uniform(0,1) < mutation_chance:
+          if children[i][j][k] == 0:
+            children[i][j][k] = 1
+          else:
+            children[i][j][k] = 0
+  return children
+
+# this function ensures that the values remain within the acceptable range
+def range_correction(population,n_parameters,n_population,n_parameter_length):
+  decimal_value = decimal_conversion(population,n_population,n_parameter_length)
+  for i in range(n_population):
+    for j in range(n_parameters):
+      while decimal_value[i][j] < parameter_range[j][0] or decimal_value[i][j] > parameter_range[j][1]:
+        decimal_value[i][j] = np.random.randint(parameter_range[j][0],parameter_range[j][1])
+      this_value = decimal_value[i][j]
+      for k in range(n_parameter_length[j]):
+        population[i][j][k] = this_value % 2
+        this_value = this_value >> 1
+  return population,decimal_value
+
+# this function converts binary to decimal
+def decimal_conversion(population,n_population,n_parameter_length):
+  decimal_value = [[0]* n_parameters for _ in range(n_population)]
+  for i in range(len(population)):
+    for j in range(n_parameters):
+      for k in range(n_parameter_length[j]):
+        decimal_value[i][j] += population[i][j][k] << (k)
+  return decimal_value
